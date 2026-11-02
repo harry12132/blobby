@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { connectToSepolia, fetchEthMarketPrice, formatUsd, getInjectedProvider, readNativeBalance, SEPOLIA_CHAIN_ID } from './wallet'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowDownLeft, ArrowDownUp, ArrowLeftRight, ArrowUpRight, Bell, Check,
@@ -34,6 +35,72 @@ const nav: { label: Tab; icon: typeof Home }[] = [
   { label: 'Activity', icon: Clock3 }, { label: 'Wallet', icon: Wallet },
 ]
 function App() {
+  const [walletAddress, setWalletAddress] = useState('')
+  const [ethBalance, setEthBalance] = useState('')
+  const [ethPrice, setEthPrice] = useState<number | null>(null)
+  const [ethChange, setEthChange] = useState<number | null>(null)
+  const [walletBusy, setWalletBusy] = useState(false)
+  const [walletError, setWalletError] = useState('')
+  const shortAddress = walletAddress ? walletAddress.slice(0, 6) + '…' + walletAddress.slice(-4) : ''
+  const portfolioValue = walletAddress && ethBalance && ethPrice !== null ? formatUsd(Number(ethBalance) * ethPrice) : '$5,983.30'
+  const connectWallet = async () => {
+    setWalletBusy(true)
+    setWalletError('')
+    try {
+      const connected = await connectToSepolia()
+      setWalletAddress(connected.address)
+      setEthBalance(await readNativeBalance(connected.address))
+      notify('Connected to Sepolia testnet.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not connect wallet.'
+      setWalletError(message)
+      notify(message)
+    } finally {
+      setWalletBusy(false)
+    }
+  }
+  const refreshWallet = async () => {
+    if (!walletAddress) return
+    try {
+      const [balance, market] = await Promise.all([readNativeBalance(walletAddress), fetchEthMarketPrice()])
+      setEthBalance(balance)
+      setEthPrice(market.usd)
+      setEthChange(market.change24h)
+    } catch (error) {
+      setWalletError(error instanceof Error ? error.message : 'Could not refresh wallet.')
+    }
+  }
+  useEffect(() => {
+    fetchEthMarketPrice().then(market => {
+      setEthPrice(market.usd)
+      setEthChange(market.change24h)
+    }).catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    if (walletAddress) void refreshWallet()
+  }, [walletAddress])
+  useEffect(() => {
+    const provider = getInjectedProvider()
+    if (!provider) return
+    const accountsChanged = (...args: unknown[]) => {
+      const accounts = args[0] as string[]
+      setWalletAddress(accounts?.[0] ?? '')
+      if (!accounts?.length) setEthBalance('')
+    }
+    const chainChanged = (...args: unknown[]) => {
+      if ((args[0] as string)?.toLowerCase() !== SEPOLIA_CHAIN_ID) {
+        setWalletAddress('')
+        setEthBalance('')
+        setWalletError('Blobby currently supports Sepolia testnet only.')
+      }
+    }
+    provider.on?.('accountsChanged', accountsChanged)
+    provider.on?.('chainChanged', chainChanged)
+    return () => {
+      provider.removeListener?.('accountsChanged', accountsChanged)
+      provider.removeListener?.('chainChanged', chainChanged)
+    }
+  }, [])
   const [tab, setTab] = useState<Tab>('Home')
   const [modal, setModal] = useState<'send' | 'receive' | 'swap' | 'collect' | null>(null)
   const [selectedDrop, setSelectedDrop] = useState<typeof drops[number] | null>(null)
@@ -72,7 +139,7 @@ function App() {
         <div className="topbar-right">
           <label className="search-field"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search anything..." /><kbd>⌘ K</kbd></label>
           <button className="top-icon" onClick={() => notify('You’re all caught up.')} aria-label="Notifications"><Bell size={18}/><i/></button>
-          <button className="network-select" onClick={() => notify('Network selection will be available when a wallet is connected.')}><span className="eth-dot"/> Ethereum <ChevronDown size={14}/></button>
+          <button className="network-select" onClick={walletAddress ? () => void refreshWallet() : () => void connectWallet()} disabled={walletBusy}><span className="eth-dot"/>{walletBusy ? 'Connecting…' : walletAddress ? shortAddress : 'Connect wallet'}<ChevronDown size={14}/></button>
         </div>
       </header>
       <div className="page-wrap">
@@ -81,8 +148,8 @@ function App() {
           <section className="hero-grid">
             <div className="portfolio-card">
               <div className="portfolio-top"><span><span className="live-dot"/> TOTAL PORTFOLIO</span><button onClick={() => setHidden(!hidden)}>{hidden ? 'SHOW' : 'HIDE'} BALANCE</button></div>
-              <div className="portfolio-number">{money('$5,983.30')} <span className="portfolio-change">↗ 4.82%</span></div>
-              <div className="portfolio-caption">+$275.42 this week <span>·</span> Sample portfolio</div>
+              <div className="portfolio-number">{money(portfolioValue)} <span className="portfolio-change">{walletAddress && ethChange !== null ? (ethChange >= 0 ? '↗ ' : '↘ ') + Math.abs(ethChange).toFixed(2) + '%' : 'DEMO'}</span></div>
+              <div className="portfolio-caption">{walletAddress ? 'Sepolia testnet · ' + (ethPrice ? 'ETH ' + formatUsd(ethPrice) : 'Loading ETH price…') : 'Sample portfolio · connect a wallet for live testnet data'}</div>
               <svg className="portfolio-chart" viewBox="0 0 600 112" preserveAspectRatio="none" aria-label="Illustrative portfolio chart"><defs><linearGradient id="chartArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c9f58b" stopOpacity=".26"/><stop offset="1" stopColor="#c9f58b" stopOpacity="0"/></linearGradient></defs><path d="M0 88 C30 83 35 68 65 76 S105 91 130 61 S170 68 195 48 S230 61 258 45 S290 58 320 33 S360 49 388 26 S425 43 455 22 S500 35 530 16 S570 26 600 7 L600 112 L0 112Z" fill="url(#chartArea)"/><path d="M0 88 C30 83 35 68 65 76 S105 91 130 61 S170 68 195 48 S230 61 258 45 S290 58 320 33 S360 49 388 26 S425 43 455 22 S500 35 530 16 S570 26 600 7" fill="none" stroke="#c9f58b" strokeWidth="2.5" strokeLinecap="round"/></svg>
               <div className="chart-labels"><span>7 DAYS</span><span>1 NOV</span><span>NOW</span></div>
               <div className="portfolio-decoration"><span/><span/><span/></div>
@@ -96,8 +163,8 @@ function App() {
           </section>
           <section className="content-grid">
             <div className="panel assets-panel"><div className="section-head"><div><div className="overline"><span/> YOUR MONEY</div><h2>Assets<span>.</span></h2></div><button className="subtle-link" onClick={() => setTab('Wallet')}>All assets <ChevronRight size={15}/></button></div>
-              <div className="asset-table">{assets.map((a, i) => <div className="asset-item" key={a.ticker}><div className={'asset-symbol '+a.tone}>{a.icon}</div><div className="asset-title"><strong>{a.name}</strong><small>{a.ticker} <span>·</span> {i === 0 ? 'Ethereum' : i === 1 ? 'Solana' : 'Bitcoin'}</small></div><div className="asset-quantity"><strong>{money(a.amount + ' ' + a.ticker)}</strong><small>{money(a.value)}</small></div><span className="asset-performance">{a.change}</span><ChevronRight className="asset-chevron" size={16}/></div>)}</div>
-              <div className="demo-note"><ShieldCheck size={15}/> Sample balances. No wallet connected.</div>
+              <div className="asset-table">{(walletAddress ? [{ ...assets[0], amount: ethBalance || '0', value: ethPrice !== null ? formatUsd(Number(ethBalance || 0) * ethPrice) : 'Loading…', change: ethChange !== null ? (ethChange >= 0 ? '+' : '') + ethChange.toFixed(2) + '%' : '—' }] : assets).map((a, i) => <div className="asset-item" key={a.ticker}><div className={'asset-symbol '+a.tone}>{a.icon}</div><div className="asset-title"><strong>{a.name}</strong><small>{a.ticker} <span>·</span> {i === 0 ? 'Ethereum' : i === 1 ? 'Solana' : 'Bitcoin'}</small></div><div className="asset-quantity"><strong>{money(a.amount + ' ' + a.ticker)}</strong><small>{money(a.value)}</small></div><span className="asset-performance">{a.change}</span><ChevronRight className="asset-chevron" size={16}/></div>)}</div>
+              <div className="demo-note"><ShieldCheck size={15}/> {walletAddress ? 'Live Sepolia balance · read-only wallet connection.' : 'Sample balances only. Connect Rabby or MetaMask to view your Sepolia testnet balance.'}</div>
             </div>
             <div className="panel activity-panel"><div className="section-head"><div><div className="overline"><span/> RECENT MOVES</div><h2>Activity<span>.</span></h2></div><button className="subtle-link" onClick={() => setTab('Activity')}>See all <ChevronRight size={15}/></button></div>
               <div className="activity-list">{activity.slice(0,3).map((item,i)=><div className="activity-item" key={item.title}><div className={item.incoming?'activity-icon incoming':'activity-icon outgoing'}>{item.incoming?<ArrowDownLeft size={17}/>:<ArrowUpRight size={17}/>}</div><div className="activity-copy"><strong>{item.title}</strong><small>{item.detail}</small></div><div className="activity-amount"><strong className={item.incoming?'amount-in':'amount-out'}>{item.amount}</strong><small>{item.time}</small></div></div>)}</div>
@@ -105,13 +172,13 @@ function App() {
           </section>
           <section className="discover-section"><div className="section-head"><div><div className="overline"><span/> MADE BY PEOPLE, NOT ALGORITHMS</div><h2>Fresh from the internet<span>.</span></h2></div><button className="subtle-link" onClick={() => setTab('Explore')}>Explore all <ExternalLink size={14}/></button></div><div className="drop-grid">{drops.map((drop,i)=><DropCard key={drop.id} drop={drop} liked={liked.includes(drop.id)} onLike={() => setLiked(old=>old.includes(drop.id)?old.filter(x=>x!==drop.id):[...old,drop.id])} onOpen={() => setSelectedDrop(drop)}/>)}</div></section>
         </>}
-        {tab === 'Wallet' && <><div className="wallet-overview"><div className="wallet-total-card"><span>TOTAL WALLET VALUE</span><strong>{money('$5,983.30')}</strong><small>↗ 4.82% this week · Sample data</small></div><div className="wallet-quick"><button onClick={() => setModal('send')}><ArrowUpRight/>Send</button><button onClick={() => setModal('receive')}><ArrowDownLeft/>Receive</button><button onClick={() => setModal('swap')}><ArrowLeftRight/>Swap</button></div></div><div className="panel full-panel"><div className="section-head"><div><div className="overline"><span/> YOUR HOLDINGS</div><h2>All assets<span>.</span></h2></div><button className="privacy-button" onClick={() => setHidden(!hidden)}>{hidden?'Show':'Hide'} balances</button></div><div className="asset-table">{assets.map(a=><div className="asset-item" key={a.ticker}><div className={'asset-symbol '+a.tone}>{a.icon}</div><div className="asset-title"><strong>{a.name}</strong><small>{a.ticker}</small></div><div className="asset-quantity"><strong>{money(a.amount+' '+a.ticker)}</strong><small>{money(a.value)}</small></div><span className="asset-performance">{a.change}</span></div>)}</div><div className="security-callout"><ShieldCheck size={20}/><div><strong>Your keys, your control.</strong><p>Blobby is currently a visual prototype. No wallet is connected, and these balances are not real.</p></div></div></div></>}
+        {tab === 'Wallet' && <><div className="wallet-overview"><div className="wallet-total-card"><span>{walletAddress ? 'SEPOLIA TESTNET VALUE' : 'TOTAL WALLET VALUE · DEMO'}</span><strong>{money(portfolioValue)}</strong><small>{walletAddress ? shortAddress + ' · ' + (ethPrice ? 'ETH ' + formatUsd(ethPrice) : 'Loading price…') : 'Connect a browser wallet for live testnet data'}</small></div><div className="wallet-quick"><button onClick={() => setModal('send')}><ArrowUpRight/>Send</button><button onClick={() => setModal('receive')}><ArrowDownLeft/>Receive</button><button onClick={() => setModal('swap')}><ArrowLeftRight/>Swap</button></div></div><div className="panel full-panel"><div className="section-head"><div><div className="overline"><span/> YOUR HOLDINGS</div><h2>All assets<span>.</span></h2></div><button className="privacy-button" onClick={() => setHidden(!hidden)}>{hidden?'Show':'Hide'} balances</button></div><div className="asset-table">{(walletAddress ? [{ ...assets[0], amount: ethBalance || '0', value: ethPrice !== null ? formatUsd(Number(ethBalance || 0) * ethPrice) : 'Loading…', change: ethChange !== null ? (ethChange >= 0 ? '+' : '') + ethChange.toFixed(2) + '%' : '—' }] : assets).map(a=><div className="asset-item" key={a.ticker}><div className={'asset-symbol '+a.tone}>{a.icon}</div><div className="asset-title"><strong>{a.name}</strong><small>{a.ticker}</small></div><div className="asset-quantity"><strong>{money(a.amount+' '+a.ticker)}</strong><small>{money(a.value)}</small></div><span className="asset-performance">{a.change}</span></div>)}</div><div className="security-callout"><ShieldCheck size={20}/><div><strong>{walletAddress ? 'Wallet connected · read only.' : 'Your keys, your control.'}</strong><p>{walletAddress ? 'Blobby reads your public Sepolia address and balance. Your wallet keeps the keys.' : 'Connect Rabby or MetaMask to read a Sepolia testnet balance. Blobby never receives your private keys.'}</p></div></div></div></>}
         {tab === 'Activity' && <div className="panel full-panel"><div className="section-head"><div><div className="overline"><span/> WALLET HISTORY</div><h2>Recent activity<span>.</span></h2></div><span className="demo-pill">SAMPLE ACTIVITY</span></div><div className="activity-list expanded">{activity.map((item,i)=><div className="activity-item" key={item.title}><div className={item.incoming?'activity-icon incoming':'activity-icon outgoing'}>{item.incoming?<ArrowDownLeft size={17}/>:<ArrowUpRight size={17}/>}</div><div className="activity-copy"><strong>{item.title}</strong><small>{item.detail}</small></div><div className="activity-amount"><strong className={item.incoming?'amount-in':'amount-out'}>{item.amount}</strong><small>{item.value} · {item.time}</small></div><button className="row-more" onClick={() => notify('Transaction details will appear once a wallet is connected.')}><ChevronRight size={17}/></button></div>)}</div><div className="security-callout"><ShieldCheck size={20}/><div><strong>Readable by design.</strong><p>When real transactions are enabled, Blobby will explain what is entering and leaving your wallet before you approve.</p></div></div></div>}
         {(tab === 'Explore' || tab === 'Collections') && <><div className="explore-toolbar"><div className="filter-tabs">{(tab === 'Explore' ? ['For you','All','Digital art','Music','3D objects'] : ['All','Digital art','Music','3D objects']).map(f=><button key={f} className={filter===f?'filter-tab selected':'filter-tab'} onClick={() => setFilter(f)}>{f}</button>)}</div><span className="results-count">{tab === 'Explore' ? 'CURATED FOR CURIOUS PEOPLE' : 'YOUR COLLECTION · DEMO'}</span></div>{tab === 'Collections' && <div className="collection-intro"><div className="collection-feature-art"><span className="feature-orb"/><span className="feature-ring"/></div><div><div className="overline"><span/> YOUR DIGITAL GALLERY</div><h2>Collect what<br/><em>moves you.</em></h2><p>Your collection is a reflection of your taste. Art, music, objects and internet ephemera, all in one place.</p></div></div>}<div className="drop-grid large-drops">{filteredDrops.map(drop=><DropCard key={drop.id} drop={drop} liked={liked.includes(drop.id)} onLike={() => setLiked(old=>old.includes(drop.id)?old.filter(x=>x!==drop.id):[...old,drop.id])} onOpen={() => setSelectedDrop(drop)}/>)}</div><div className="panel creator-panel"><div className="section-head"><div><div className="overline"><span/> PEOPLE MAKING THINGS</div><h2>Good people to know<span>.</span></h2></div></div><div className="creator-grid">{creators.map(c=><div className="creator-card" key={c.name}><div className={'creator-avatar '+c.tone}>{c.initials}</div><div><strong>{c.name}</strong><small>{c.role} · {c.followers}</small></div><button className={following.includes(c.name)?'follow-btn following':'follow-btn'} onClick={() => setFollowing(old=>old.includes(c.name)?old.filter(x=>x!==c.name):[...old,c.name])}>{following.includes(c.name)?'Following':'Follow'}</button></div>)}</div></div></>}
-        <footer className="page-footer"><span><b>blobby.</b> A little more culture.</span><span>DEMO EXPERIENCE · NO REAL ASSETS</span><span>MADE FOR THE INTERNET <i>✳</i></span></footer>
+        <footer className="page-footer"><span><b>blobby.</b> A little more culture.</span><span>{walletAddress ? 'SEPOLIA TESTNET · READ ONLY' : 'DEMO EXPERIENCE · NO REAL ASSETS'}</span><span>MADE FOR THE INTERNET <i>✳</i></span></footer>
       </div>
     </main>
-    <AnimatePresence>{(modal || selectedDrop) && <motion.div className="modal-scrim" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={closeModal}><motion.div className="modal-sheet" initial={{opacity:0,y:18,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:12}} onClick={e=>e.stopPropagation()}><button className="modal-x" onClick={closeModal}><X size={18}/></button>{selectedDrop ? <><div className={'modal-drop-art art-'+selectedDrop.art}><Sparkles size={27}/></div><div className="overline"><span/> {selectedDrop.type.toUpperCase()}</div><h2>{selectedDrop.title}</h2><p className="modal-copy">A piece of the internet by <b>{selectedDrop.creator}</b>. Collect the things that move you.</p><div className="modal-info-row"><span>Edition</span><b>{selectedDrop.edition}</b></div><div className="modal-info-row"><span>Price</span><b>{selectedDrop.price}</b></div><button className="modal-primary" onClick={() => {closeModal();notify('Collecting will be available in a future version.')}}>Collect this drop <ArrowUpRight size={17}/></button></> : modal === 'send' ? <><div className="modal-symbol send-symbol"><ArrowUpRight size={21}/></div><div className="overline"><span/> SEND ASSETS</div><h2>Send with confidence.</h2><p className="modal-copy">This is a preview only. No funds will move and no transaction will be created.</p><label className="form-label">RECIPIENT ADDRESS<input placeholder="Wallet address or ENS name"/></label><label className="form-label">ASSET<select><option>ETH · Ethereum</option><option>SOL · Solana (demo only)</option><option>BTC · Bitcoin (demo only)</option></select></label><label className="form-label">AMOUNT<input placeholder="0.00" inputMode="decimal"/></label><div className="preview-note"><ShieldCheck size={16}/> A real transfer preview will show the recipient, network fee and exact balance change before signing.</div><button className="modal-primary" onClick={() => {closeModal();notify('Preview only. No transaction was created.')}}>Review transfer <ArrowUpRight size={17}/></button></> : modal === 'receive' ? <><div className="modal-symbol receive-symbol"><ArrowDownLeft size={21}/></div><div className="overline"><span/> RECEIVE ASSETS</div><h2>Your address, one tap away.</h2><p className="modal-copy">Connect a wallet to create a receive address and share it safely.</p><div className="address-empty"><Wallet size={22}/><span><b>No wallet connected</b><small>Your receive address will appear here.</small></span></div><button className="modal-primary" onClick={() => {closeModal();notify('Wallet connection is not enabled yet.')}}>Got it <Check size={17}/></button></> : <><div className="modal-symbol swap-symbol"><ArrowLeftRight size={21}/></div><div className="overline"><span/> SWAP ASSETS</div><h2>Move between assets.</h2><p className="modal-copy">A swap preview will compare the rate, network fee and minimum received before you approve.</p><div className="swap-preview"><span>YOU PAY <b>ETH</b></span><ArrowDownUp size={18}/><span>YOU RECEIVE <b>SOL</b></span></div><button className="modal-primary" onClick={() => {closeModal();notify('Swap is not connected in this prototype.')}}>Understood <Check size={17}/></button></>}</motion.div></motion.div>}</AnimatePresence>
+    <AnimatePresence>{(modal || selectedDrop) && <motion.div className="modal-scrim" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={closeModal}><motion.div className="modal-sheet" initial={{opacity:0,y:18,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:12}} onClick={e=>e.stopPropagation()}><button className="modal-x" onClick={closeModal}><X size={18}/></button>{selectedDrop ? <><div className={'modal-drop-art art-'+selectedDrop.art}><Sparkles size={27}/></div><div className="overline"><span/> {selectedDrop.type.toUpperCase()}</div><h2>{selectedDrop.title}</h2><p className="modal-copy">A piece of the internet by <b>{selectedDrop.creator}</b>. Collect the things that move you.</p><div className="modal-info-row"><span>Edition</span><b>{selectedDrop.edition}</b></div><div className="modal-info-row"><span>Price</span><b>{selectedDrop.price}</b></div><button className="modal-primary" onClick={() => {closeModal();notify('Collecting will be available in a future version.')}}>Collect this drop <ArrowUpRight size={17}/></button></> : modal === 'send' ? <><div className="modal-symbol send-symbol"><ArrowUpRight size={21}/></div><div className="overline"><span/> SEND ASSETS</div><h2>Send with confidence.</h2><p className="modal-copy">This is a preview only. No funds will move and no transaction will be created.</p><label className="form-label">RECIPIENT ADDRESS<input placeholder="Wallet address or ENS name"/></label><label className="form-label">ASSET<select><option>ETH · Ethereum</option><option>SOL · Solana (demo only)</option><option>BTC · Bitcoin (demo only)</option></select></label><label className="form-label">AMOUNT<input placeholder="0.00" inputMode="decimal"/></label><div className="preview-note"><ShieldCheck size={16}/> A real transfer preview will show the recipient, network fee and exact balance change before signing.</div><button className="modal-primary" onClick={() => {closeModal();notify('Preview only. No transaction was created.')}}>Review transfer <ArrowUpRight size={17}/></button></> : modal === 'receive' ? <><div className="modal-symbol receive-symbol"><ArrowDownLeft size={21}/></div><div className="overline"><span/> RECEIVE ASSETS</div><h2>Your address, one tap away.</h2><p className="modal-copy">Connect a wallet to create a receive address and share it safely.</p><div className="address-empty"><Wallet size={22}/><span><b>No wallet connected</b><small>Your receive address will appear here.</small></span></div><button className="modal-primary" onClick={() => {closeModal();void connectWallet()}} disabled={walletBusy}>{walletBusy ? 'Connecting…' : walletAddress ? 'Refresh wallet' : 'Connect browser wallet'} <ArrowUpRight size={17}/></button></> : <><div className="modal-symbol swap-symbol"><ArrowLeftRight size={21}/></div><div className="overline"><span/> SWAP ASSETS</div><h2>Move between assets.</h2><p className="modal-copy">A swap preview will compare the rate, network fee and minimum received before you approve.</p><div className="swap-preview"><span>YOU PAY <b>ETH</b></span><ArrowDownUp size={18}/><span>YOU RECEIVE <b>SOL</b></span></div><button className="modal-primary" onClick={() => {closeModal();notify('Swap is not connected in this prototype.')}}>Understood <Check size={17}/></button></>}</motion.div></motion.div>}</AnimatePresence>
     <AnimatePresence>{toast && <motion.div className="toast-message" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:8}}><Sparkles size={16}/>{toast}</motion.div>}</AnimatePresence>
   </div>
 }

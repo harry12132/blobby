@@ -49,4 +49,16 @@ cargo run --bin blobby-keygen
 
 Never share or commit secret keys. The key generator is for development only.
 
+## Benchmarking
+
+Run the single-process microbenchmark with an optional transaction count (default 10,000):
+
+```bash
+cargo run --release --bin bench -- 10000
+```
+
+It reports transaction signing time and block-application throughput. This is a local microbenchmark, not network TPS and not comparable to published multi-validator chain benchmarks. Results depend on hardware and build settings.
+
+The execution module also includes a deterministic conflict-free batch planner. It identifies independent account accesses but does not yet execute them in parallel.
+
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the staged networking, consensus, and performance plan.

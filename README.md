@@ -43,3 +43,14 @@ npm run dev
 ```bash
 npm run build
 ```
+
+
+## Creator and wallet features (Sepolia MVP)
+
+- Live native ETH balance and ETH/USD reference price.
+- Sepolia transaction history and ERC-20 token balances via the public Blockscout API.
+- Creator profile and drop listings saved in browser local storage (not shared between devices or users).
+- Creator drop purchases send Sepolia test ETH to the creator's configured payout address after explicit wallet approval.
+- All transfers are testnet-only. Sample drops have no payout address and cannot be purchased.
+
+This is still a prototype. It has no production account system, shared creator database, media hosting, NFT minting, smart-contract marketplace, atomic collaborator revenue splits, or mainnet support. Never use real funds with this build.

@@ -12,3 +12,18 @@
 
 .wallet-history-empty{padding:24px 8px;color:#898b82;font-size:10px;line-height:1.7}
 .copy-address{border:0;background:#edf5e5;color:#71974a;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex-shrink:0}
+
+
+/* Creator and live wallet release */
+.creator-actions{display:flex;align-items:center;gap:12px}
+.creator-publish{width:auto!important;padding:10px 14px!important;margin:0!important;font-size:12px!important}
+.form-label textarea,.form-label select{width:100%;margin-top:8px;border:1px solid #e6e6e0;border-radius:12px;background:#fafaf7;padding:13px 14px;font:inherit;color:#252522;resize:vertical;outline:none}
+.form-label textarea:focus,.form-label select:focus{border-color:#a9c77a}
+.token-section-head{display:flex;justify-content:space-between;align-items:center;padding:22px 0 8px;border-top:1px solid #efefea;margin-top:10px;font-size:13px}
+.token-section-head span,.modal-footnote{font-size:11px;color:#92928b}
+.token-symbol{font-size:12px;font-weight:700;letter-spacing:-.04em}
+.activity-copy a{color:#637d38;text-decoration:none}
+.activity-copy a:hover{text-decoration:underline}
+.modal-footnote{line-height:1.5;margin:12px 0 0}
+.creator-panel .section-head{align-items:center}
+@media(max-width:650px){.creator-actions{flex-direction:column;align-items:flex-end;gap:6px}.creator-publish{padding:8px 10px!important}}

@@ -67,3 +67,45 @@ export async function sendSepoliaEth(from: string, to: string, amount: string) {
   }) as string
   return hash
 }
+
+
+export type SepoliaTransaction = {
+  hash: string
+  from: { hash: string }
+  to: { hash: string } | null
+  value: string
+  timestamp: string
+  status: string
+  method: string | null
+  block: number
+}
+export type SepoliaTokenBalance = {
+  token: { address_hash: string; name: string; symbol: string; decimals: string; exchange_rate: string | null; type: string }
+  value: string
+}
+const BLOCKSCOUT_API = 'https://eth-sepolia.blockscout.com/api/v2'
+async function blockscout<T>(path: string): Promise<T> {
+  const response = await fetch(BLOCKSCOUT_API + path)
+  if (!response.ok) throw new Error('Sepolia explorer data is temporarily unavailable.')
+  return response.json() as Promise<T>
+}
+export async function readSepoliaTransactions(address: string): Promise<SepoliaTransaction[]> {
+  const data = await blockscout<{ items?: SepoliaTransaction[] }>(`/addresses/${address}/transactions`)
+  return data.items ?? []
+}
+export async function readSepoliaTokenBalances(address: string): Promise<SepoliaTokenBalance[]> {
+  const data = await blockscout<SepoliaTokenBalance[]>(`/addresses/${address}/token-balances`)
+  return Array.isArray(data) ? data.filter(item => item.token?.symbol && item.token?.decimals !== undefined) : []
+}
+export function formatTokenAmount(value: string, decimals: string) {
+  const precision = Math.min(Math.max(Number(decimals) || 0, 0), 36)
+  const raw = BigInt(value || '0')
+  const divisor = 10n ** BigInt(precision)
+  const whole = raw / divisor
+  const fraction = (raw % divisor).toString().padStart(precision, '0').slice(0, 5).replace(/0+$/, '')
+  return fraction ? whole.toString() + '.' + fraction : whole.toString()
+}
+export function formatSepoliaDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}

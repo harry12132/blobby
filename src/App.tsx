@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { connectToSepolia, fetchEthMarketPrice, formatUsd, getInjectedProvider, readNativeBalance, SEPOLIA_CHAIN_ID } from './wallet'
+import { connectToSepolia, fetchEthMarketPrice, formatUsd, getInjectedProvider, readNativeBalance, SEPOLIA_CHAIN_ID, sendSepoliaEth } from './wallet'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowDownLeft, ArrowDownUp, ArrowLeftRight, ArrowUpRight, Bell, Check,
@@ -40,9 +40,32 @@ function App() {
   const [ethPrice, setEthPrice] = useState<number | null>(null)
   const [ethChange, setEthChange] = useState<number | null>(null)
   const [walletBusy, setWalletBusy] = useState(false)
+  const [sendAddress, setSendAddress] = useState('')
+  const [sendAmount, setSendAmount] = useState('')
+  const [sendBusy, setSendBusy] = useState(false)
   const [walletError, setWalletError] = useState('')
   const shortAddress = walletAddress ? walletAddress.slice(0, 6) + '…' + walletAddress.slice(-4) : ''
-  const portfolioValue = walletAddress && ethBalance && ethPrice !== null ? formatUsd(Number(ethBalance) * ethPrice) : '$5,983.30'
+  const portfolioValue = walletAddress ? (ethBalance && ethPrice !== null ? formatUsd(Number(ethBalance) * ethPrice) : 'Loading…') : '$5,983.30'
+  const sendTestnetEth = async () => {
+    if (!walletAddress) {
+      notify('Connect a wallet first.')
+      return
+    }
+    setSendBusy(true)
+    try {
+      const hash = await sendSepoliaEth(walletAddress, sendAddress.trim(), sendAmount.trim())
+      closeModal()
+      setSendAddress('')
+      setSendAmount('')
+      notify('Testnet transaction submitted: ' + hash.slice(0, 12) + '…')
+      window.open('https://sepolia.etherscan.io/tx/' + hash, '_blank', 'noopener,noreferrer')
+      window.setTimeout(() => void refreshWallet(), 5000)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Transaction was not submitted.')
+    } finally {
+      setSendBusy(false)
+    }
+  }
   const connectWallet = async () => {
     setWalletBusy(true)
     setWalletError('')
@@ -178,7 +201,7 @@ function App() {
         <footer className="page-footer"><span><b>blobby.</b> A little more culture.</span><span>{walletAddress ? 'SEPOLIA TESTNET · READ ONLY' : 'DEMO EXPERIENCE · NO REAL ASSETS'}</span><span>MADE FOR THE INTERNET <i>✳</i></span></footer>
       </div>
     </main>
-    <AnimatePresence>{(modal || selectedDrop) && <motion.div className="modal-scrim" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={closeModal}><motion.div className="modal-sheet" initial={{opacity:0,y:18,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:12}} onClick={e=>e.stopPropagation()}><button className="modal-x" onClick={closeModal}><X size={18}/></button>{selectedDrop ? <><div className={'modal-drop-art art-'+selectedDrop.art}><Sparkles size={27}/></div><div className="overline"><span/> {selectedDrop.type.toUpperCase()}</div><h2>{selectedDrop.title}</h2><p className="modal-copy">A piece of the internet by <b>{selectedDrop.creator}</b>. Collect the things that move you.</p><div className="modal-info-row"><span>Edition</span><b>{selectedDrop.edition}</b></div><div className="modal-info-row"><span>Price</span><b>{selectedDrop.price}</b></div><button className="modal-primary" onClick={() => {closeModal();notify('Collecting will be available in a future version.')}}>Collect this drop <ArrowUpRight size={17}/></button></> : modal === 'send' ? <><div className="modal-symbol send-symbol"><ArrowUpRight size={21}/></div><div className="overline"><span/> SEND ASSETS</div><h2>Send with confidence.</h2><p className="modal-copy">This is a preview only. No funds will move and no transaction will be created.</p><label className="form-label">RECIPIENT ADDRESS<input placeholder="Wallet address or ENS name"/></label><label className="form-label">ASSET<select><option>ETH · Ethereum</option><option>SOL · Solana (demo only)</option><option>BTC · Bitcoin (demo only)</option></select></label><label className="form-label">AMOUNT<input placeholder="0.00" inputMode="decimal"/></label><div className="preview-note"><ShieldCheck size={16}/> A real transfer preview will show the recipient, network fee and exact balance change before signing.</div><button className="modal-primary" onClick={() => {closeModal();notify('Preview only. No transaction was created.')}}>Review transfer <ArrowUpRight size={17}/></button></> : modal === 'receive' ? <><div className="modal-symbol receive-symbol"><ArrowDownLeft size={21}/></div><div className="overline"><span/> RECEIVE ASSETS</div><h2>Your address, one tap away.</h2><p className="modal-copy">Connect a wallet to create a receive address and share it safely.</p><div className="address-empty"><Wallet size={22}/><span><b>No wallet connected</b><small>Your receive address will appear here.</small></span></div><button className="modal-primary" onClick={() => {closeModal();void connectWallet()}} disabled={walletBusy}>{walletBusy ? 'Connecting…' : walletAddress ? 'Refresh wallet' : 'Connect browser wallet'} <ArrowUpRight size={17}/></button></> : <><div className="modal-symbol swap-symbol"><ArrowLeftRight size={21}/></div><div className="overline"><span/> SWAP ASSETS</div><h2>Move between assets.</h2><p className="modal-copy">A swap preview will compare the rate, network fee and minimum received before you approve.</p><div className="swap-preview"><span>YOU PAY <b>ETH</b></span><ArrowDownUp size={18}/><span>YOU RECEIVE <b>SOL</b></span></div><button className="modal-primary" onClick={() => {closeModal();notify('Swap is not connected in this prototype.')}}>Understood <Check size={17}/></button></>}</motion.div></motion.div>}</AnimatePresence>
+    <AnimatePresence>{(modal || selectedDrop) && <motion.div className="modal-scrim" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={closeModal}><motion.div className="modal-sheet" initial={{opacity:0,y:18,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:12}} onClick={e=>e.stopPropagation()}><button className="modal-x" onClick={closeModal}><X size={18}/></button>{selectedDrop ? <><div className={'modal-drop-art art-'+selectedDrop.art}><Sparkles size={27}/></div><div className="overline"><span/> {selectedDrop.type.toUpperCase()}</div><h2>{selectedDrop.title}</h2><p className="modal-copy">A piece of the internet by <b>{selectedDrop.creator}</b>. Collect the things that move you.</p><div className="modal-info-row"><span>Edition</span><b>{selectedDrop.edition}</b></div><div className="modal-info-row"><span>Price</span><b>{selectedDrop.price}</b></div><button className="modal-primary" onClick={() => {closeModal();notify('Collecting will be available in a future version.')}}>Collect this drop <ArrowUpRight size={17}/></button></> : modal === 'send' ? <><div className="modal-symbol send-symbol"><ArrowUpRight size={21}/></div><div className="overline"><span/> SEND ASSETS</div><h2>Send with confidence.</h2><p className="modal-copy">Sepolia testnet only. Your connected wallet will show the transaction and network fee before you approve it. Blobby cannot send mainnet funds.</p><label className="form-label">RECIPIENT ADDRESS<input value={sendAddress} onChange={e => setSendAddress(e.target.value)} placeholder="0x… recipient address" autoComplete="off"/></label><label className="form-label">NETWORK<input value="Ethereum Sepolia testnet" readOnly/></label><label className="form-label">AMOUNT (TEST ETH)<input value={sendAmount} onChange={e => setSendAmount(e.target.value)} placeholder="0.00" inputMode="decimal"/></label><div className="preview-note"><ShieldCheck size={16}/> A real transfer preview will show the recipient, network fee and exact balance change before signing.</div><button className="modal-primary" onClick={() => void sendTestnetEth()} disabled={sendBusy || !walletAddress}>{sendBusy ? 'Waiting for wallet…' : 'Review & send test ETH'} <ArrowUpRight size={17}/></button></> : modal === 'receive' ? <><div className="modal-symbol receive-symbol"><ArrowDownLeft size={21}/></div><div className="overline"><span/> RECEIVE ASSETS</div><h2>Your address, one tap away.</h2><p className="modal-copy">Connect a wallet to create a receive address and share it safely.</p><div className="address-empty"><Wallet size={22}/><span><b>{walletAddress ? shortAddress : 'No wallet connected'}</b><small>{walletAddress ? 'Sepolia testnet receive address' : 'Your receive address will appear here.'}</small></span>{walletAddress && <button className="copy-address" onClick={() => {void navigator.clipboard.writeText(walletAddress);notify('Address copied.')}} aria-label="Copy receive address"><Copy size={16}/></button>}</div><button className="modal-primary" onClick={() => {closeModal();void connectWallet()}} disabled={walletBusy}>{walletBusy ? 'Connecting…' : walletAddress ? 'Refresh wallet' : 'Connect browser wallet'} <ArrowUpRight size={17}/></button></> : <><div className="modal-symbol swap-symbol"><ArrowLeftRight size={21}/></div><div className="overline"><span/> SWAP ASSETS</div><h2>Move between assets.</h2><p className="modal-copy">A swap preview will compare the rate, network fee and minimum received before you approve.</p><div className="swap-preview"><span>YOU PAY <b>ETH</b></span><ArrowDownUp size={18}/><span>YOU RECEIVE <b>SOL</b></span></div><button className="modal-primary" onClick={() => {closeModal();notify('Swap is not connected in this prototype.')}}>Understood <Check size={17}/></button></>}</motion.div></motion.div>}</AnimatePresence>
     <AnimatePresence>{toast && <motion.div className="toast-message" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:8}}><Sparkles size={16}/>{toast}</motion.div>}</AnimatePresence>
   </div>
 }

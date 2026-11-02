@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.78"
 description = "Blobby experimental Layer 1 blockchain node"
 license = "MIT"
+default-run = "blobby-node"
 
 [lib]
 name = "blobby"

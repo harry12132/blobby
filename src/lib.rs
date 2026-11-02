@@ -1,5 +1,6 @@
 pub mod ledger;
 pub mod rpc;
+pub mod storage;
 pub mod transaction;
 pub mod types;
 

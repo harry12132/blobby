@@ -1,44 +1,38 @@
 # Blobby roadmap
 
-## Stage 0 — Local protocol prototype (current)
-- [x] Rust workspace and node binary
-- [x] Ed25519-signed transfer format
-- [x] Account balances and sequential nonces
-- [x] Minimum base-unit fee and fee accounting
-- [x] Atomic block application and block hashing
-- [x] Bounded in-memory mempool
-- [x] Local HTTP API and development faucet
-- [ ] Compile and run CI on GitHub Actions
+## Stage 0 — Local protocol prototype
+- [x] Rust node and HTTP API
+- [x] Ed25519-signed transfers and account nonces
+- [x] Fee accounting, bounded mempool, atomic block application
+- [x] Deterministic block hashing
 
-## Stage 1 — Correctness and reproducibility
-- [ ] CI: formatting, linting, unit tests, dependency audit
-- [ ] Property-based tests for balances, nonces, replay and overflow
-- [ ] Fuzz transaction and RPC input parsers
-- [ ] Durable storage with crash-safe recovery
-- [ ] Deterministic state root and block verification
-- [ ] Benchmark harness with documented hardware
+## Stage 1 — Durable single-node foundation
+- [x] Versioned ledger snapshots
+- [x] Atomic file replacement and checksum validation
+- [x] Verify block heights, parent links, and hashes on startup
+- [x] Persist faucet credits and committed blocks before publishing state
+- [ ] Persist/recover the mempool
+- [ ] Snapshot rotation, migrations, and crash-injection tests
 
-## Stage 2 — Distributed network
-- [ ] Peer-to-peer transport and authenticated node identity
-- [ ] Validator registration and genesis validator set
-- [ ] BFT consensus with quorum certificates
-- [ ] Network partitions, Byzantine and restart simulations
-- [ ] Multi-machine testnet
+## Stage 2 — Multi-node networking
+- [ ] Node identity keys and authenticated peer handshakes
+- [ ] Peer allowlists, rate limits, bounded messages, and protocol versioning
+- [ ] Block and transaction gossip with replay protection
+- [ ] State sync from a trusted finalized checkpoint
+- [ ] Multi-process integration tests and network-partition tests
 
-## Stage 3 — Throughput
-- [ ] Parallel signature verification
-- [ ] Conflict-aware parallel transaction execution
-- [ ] Efficient block propagation and batching
-- [ ] State database and pruning strategy
-- [ ] Sustained-load benchmarks across independent machines
+## Stage 3 — Consensus and validator safety
+- [ ] Specify validator membership, authority model, and threat assumptions
+- [ ] Adopt or formally specify a reviewed BFT protocol; do not ship ad-hoc voting
+- [ ] Signed proposals, prevotes/precommits, quorum certificates, and equivocation evidence
+- [ ] Persist consensus rounds and safety-critical locks before sending votes
+- [ ] Fault-injection tests for Byzantine nodes and network partitions
 
-## Stage 4 — Production readiness
-- [ ] Independent protocol and cryptography audits
-- [ ] Economic and validator incentive analysis
-- [ ] Operational monitoring, backups and incident response
-- [ ] Public testnet and bug bounty
-- [ ] Mainnet only after external review and sustained testing
+## Stage 4 — Execution and performance
+- [ ] Deterministic conflict graph for independent transactions
+- [ ] Parallel execution with deterministic state-root comparison
+- [ ] Criterion microbenchmarks and end-to-end multi-node load tests
+- [ ] Publish reproducible TPS, p50/p95/p99 latency, hardware, and fee methodology
+- [ ] Independent security review before any public testnet
 
-## Performance policy
-
-No TPS, finality, decentralisation, security, or fee-superiority claim is considered achieved until independently reproducible measurements support it.
+A fast single machine is not a decentralised chain. Consensus safety and reproducibility take priority over headline TPS.

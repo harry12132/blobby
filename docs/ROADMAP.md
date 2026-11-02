@@ -29,7 +29,7 @@
 - [ ] Fault-injection tests for Byzantine nodes and network partitions
 
 ## Stage 4 — Execution and performance
-- [ ] Deterministic conflict graph for independent transactions
+- [x] Deterministic conflict-free batch planner for independent account accesses
 - [ ] Parallel execution with deterministic state-root comparison
 - [ ] Criterion microbenchmarks and end-to-end multi-node load tests
 - [ ] Publish reproducible TPS, p50/p95/p99 latency, hardware, and fee methodology

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -25,7 +25,7 @@ pub enum LedgerError {
     EmptyBlock,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Ledger {
     accounts: HashMap<String, Account>,
     blocks: Vec<Block>,
@@ -123,14 +123,7 @@ impl Ledger {
             .map(|block| block.hash.clone())
             .unwrap_or_else(|| GENESIS_HASH.to_owned());
 
-        let payload = BlockHashPayload {
-            height,
-            timestamp_ms,
-            previous_hash: &previous_hash,
-            transactions: &transactions,
-        };
-        let encoded = serde_json::to_vec(&payload).expect("block payload serialization is infallible");
-        let hash = hex::encode(Sha256::digest(encoded));
+        let hash = calculate_block_hash(height, timestamp_ms, &previous_hash, &transactions);
         let block = Block { height, timestamp_ms, previous_hash, transactions, hash };
 
         candidate.blocks.push(block.clone());
@@ -158,6 +151,24 @@ impl Ledger {
         Ok(())
     }
 
+    /// Verify heights, parent links, and hashes before loading persisted state.
+    pub fn verify_chain(&self) -> bool {
+        let mut previous_hash = GENESIS_HASH.to_owned();
+        for (index, block) in self.blocks.iter().enumerate() {
+            if block.height != index as u64 + 1 || block.previous_hash != previous_hash {
+                return false;
+            }
+            let expected = calculate_block_hash(
+                block.height, block.timestamp_ms, &block.previous_hash, &block.transactions,
+            );
+            if block.hash != expected {
+                return false;
+            }
+            previous_hash = block.hash.clone();
+        }
+        true
+    }
+
     pub fn status(&self) -> NetworkStatus {
         NetworkStatus {
             network: "Blobby".to_owned(),
@@ -177,6 +188,17 @@ impl Ledger {
         let fraction = amount % BASE_UNITS_PER_BLOB;
         format!("{whole}.{fraction:09}")
     }
+}
+
+fn calculate_block_hash(
+    height: u64,
+    timestamp_ms: u128,
+    previous_hash: &str,
+    transactions: &[Transaction],
+) -> String {
+    let payload = BlockHashPayload { height, timestamp_ms, previous_hash, transactions };
+    let encoded = serde_json::to_vec(&payload).expect("block payload serialization is infallible");
+    hex::encode(Sha256::digest(encoded))
 }
 
 #[cfg(test)]

@@ -1,0 +1,36 @@
+[package]
+name = "blobby"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Blobby experimental Layer 1 blockchain node"
+license = "MIT"
+
+[lib]
+name = "blobby"
+path = "src/lib.rs"
+
+[[bin]]
+name = "blobby-node"
+path = "src/main.rs"
+
+[[bin]]
+name = "blobby-keygen"
+path = "src/bin/keygen.rs"
+
+[dependencies]
+axum = "0.7"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = "0.4"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

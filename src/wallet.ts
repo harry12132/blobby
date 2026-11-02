@@ -50,3 +50,20 @@ export async function fetchEthMarketPrice() {
 export function formatUsd(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value)
 }
+
+export async function sendSepoliaEth(from: string, to: string, amount: string) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(to)) throw new Error('Enter a valid 0x wallet address.')
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(amount)) throw new Error('Enter a valid ETH amount with up to 18 decimal places.')
+  const provider = getInjectedProvider()
+  if (!provider) throw new Error('Connect your browser wallet first.')
+  const chainId = await provider.request({ method: 'eth_chainId' }) as string
+  if (chainId.toLowerCase() !== SEPOLIA_CHAIN_ID) throw new Error('Transactions are restricted to Sepolia testnet.')
+  const [whole, fraction = ''] = amount.split('.')
+  const wei = BigInt(whole) * 10n ** 18n + BigInt((fraction + '0'.repeat(18)).slice(0, 18))
+  if (wei <= 0n) throw new Error('Amount must be greater than zero.')
+  const hash = await provider.request({
+    method: 'eth_sendTransaction',
+    params: [{ from, to, value: '0x' + wei.toString(16) }],
+  }) as string
+  return hash
+}

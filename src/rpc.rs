@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     extract::{Path, State},
@@ -11,6 +11,7 @@ use tokio::sync::{Mutex, RwLock};
 
 use crate::ledger::{Ledger, LedgerError, CHAIN_ID};
 use crate::transaction::Transaction;
+use crate::storage::save_ledger;
 use crate::types::{Account, Block};
 
 #[derive(Clone)]
@@ -18,6 +19,7 @@ pub struct AppState {
     pub ledger: Arc<RwLock<Ledger>>,
     pub mempool: Arc<Mutex<Vec<Transaction>>>,
     pub dev_mode: bool,
+    pub storage_path: Arc<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -119,8 +121,12 @@ async fn faucet(
         return Err(api_error(StatusCode::BAD_REQUEST, "faucet limit is 1,000 BLOB per request"));
     }
     let mut ledger = state.ledger.write().await;
-    ledger.credit_dev_account(&request.address, request.amount)
+    let mut candidate = ledger.clone();
+    candidate.credit_dev_account(&request.address, request.amount)
         .map_err(|error| api_error(StatusCode::BAD_REQUEST, &error.to_string()))?;
+    save_ledger(state.storage_path.as_ref(), &candidate)
+        .map_err(|error| api_error(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))?;
+    *ledger = candidate;
     Ok(Json(ledger.account(&request.address)))
 }
 
@@ -137,8 +143,12 @@ async fn produce_block(
     }
     let pending = mempool.clone();
     let mut ledger = state.ledger.write().await;
-    match ledger.produce_block(pending) {
+    let mut candidate = ledger.clone();
+    match candidate.produce_block(pending) {
         Ok(block) => {
+            save_ledger(state.storage_path.as_ref(), &candidate)
+                .map_err(|error| api_error(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()))?;
+            *ledger = candidate;
             mempool.clear();
             Ok(Json(ProduceResponse {
                 produced: true,
@@ -146,9 +156,7 @@ async fn produce_block(
                 remaining_mempool: mempool.len(),
             }))
         }
-        Err(error) => {
-            Err(api_error(StatusCode::BAD_REQUEST, &ledger_error_message(error)))
-        }
+        Err(error) => Err(api_error(StatusCode::BAD_REQUEST, &ledger_error_message(error))),
     }
 }
 

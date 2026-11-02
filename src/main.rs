@@ -1,7 +1,7 @@
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use blobby::rpc::{router, AppState};
-use blobby::Ledger;
+use blobby::storage::load_ledger;
 use tokio::sync::{Mutex, RwLock};
 use tracing_subscriber::EnvFilter;
 
@@ -18,10 +18,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| value != "false" && value != "0")
         .unwrap_or(true);
 
+    let data_dir = PathBuf::from(
+        env::var("BLOBBY_DATA_DIR").unwrap_or_else(|_| "./data".to_owned()),
+    );
+    std::fs::create_dir_all(&data_dir)?;
+    let storage_path = Arc::new(data_dir.join("ledger.json"));
+    let ledger = load_ledger(storage_path.as_ref())?;
+    tracing::info!(height = ledger.height(), data_dir = %data_dir.display(), "Loaded durable ledger state");
+
     let state = AppState {
-        ledger: std::sync::Arc::new(RwLock::new(Ledger::new())),
-        mempool: std::sync::Arc::new(Mutex::new(Vec::new())),
+        ledger: Arc::new(RwLock::new(ledger)),
+        mempool: Arc::new(Mutex::new(Vec::new())),
         dev_mode,
+        storage_path,
     };
     let app = router(state);
     let listener = tokio::net::TcpListener::bind(bind).await?;

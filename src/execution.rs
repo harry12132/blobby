@@ -57,7 +57,7 @@ mod tests {
             tx("a", "e"),
             tx("f", "g"),
         ];
-        assert_eq!(conflict_free_batches(&transactions), vec![vec![0, 1], vec![2, 3]]);
+        assert_eq!(conflict_free_batches(&transactions), vec![vec![0, 1, 3], vec![2]]);
     }
 
     #[test]

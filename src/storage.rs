@@ -96,11 +96,14 @@ mod tests {
     #[test]
     fn snapshot_round_trip_preserves_state() {
         let file = path();
-        let ledger = Ledger::new();
+        let mut ledger = Ledger::new();
+        let address = "11".repeat(32);
+        ledger.credit_dev_account(&address, 987_654_321).unwrap();
         save_ledger(&file, &ledger).unwrap();
         let restored = load_ledger(&file).unwrap();
         assert_eq!(restored.height(), ledger.height());
         assert_eq!(restored.total_supply(), ledger.total_supply());
+        assert_eq!(restored.account(&address).balance, 987_654_321);
         let _ = fs::remove_file(file);
     }
 

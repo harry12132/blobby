@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ pub enum LedgerError {
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Ledger {
-    accounts: HashMap<String, Account>,
+    accounts: BTreeMap<String, Account>,
     blocks: Vec<Block>,
     total_supply: u64,
 }

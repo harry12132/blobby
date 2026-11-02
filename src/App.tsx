@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowDownLeft, ArrowUpRight, ArrowUpRightFromSquare, Bell, ChevronDown, ChevronRight,
+  ArrowDownLeft, ArrowUpRight, ExternalLink, Bell, ChevronDown, ChevronRight,
   Compass, Copy, Disc3, Ellipsis, Flame, Grid2X2, Heart, Image, LayoutGrid, Plus,
   Search, Settings2, ShieldCheck, Sparkles, Wallet, X, Zap
 } from 'lucide-react'

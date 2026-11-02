@@ -1,7 +1,7 @@
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use blobby::rpc::{router, AppState};
-use blobby::{storage::load_ledger, Ledger};
+use blobby::storage::load_ledger;
 use tokio::sync::{Mutex, RwLock};
 use tracing_subscriber::EnvFilter;
 
